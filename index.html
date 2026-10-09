@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Emergency Supplies Knapsack Visualizer</title>
+        <style>
+        body{font-family:Arial;margin:0;background:#f5f7fb;color:#172033}
+        header{background:#111827;color:white;padding:22px}
+        main{max-width:1400px;margin:20px auto;padding:0 18px}
+        .grid{display:grid;grid-template-columns:330px 1fr;gap:18px}
+        .card{background:#fff;border:1px solid #d9dee8;border-radius:14px;padding:18px}
+        h1{margin:0;font-size:25px}h2{font-size:18px}
+        label{display:block;font-weight:bold;margin:9px 0 4px}
+        input{width:100%;padding:9px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px}
+        .row{display:flex;gap:8px}
+        .row>div{flex:1}
+        button{padding:9px 12px;border:0;border-radius:7px;font-weight:bold;cursor:pointer;margin:6px 4px 0 0}
+        .primary{background:#2563eb;color:#fff}
+        .secondary{background:#e5e7eb}
+        .danger{background:#fee2e2;color:#991b1b}
+        .item{border:1px solid #d9dee8;border-radius:8px;padding:9px;margin-top:8px}
+        .item.chosen{border:2px solid #7c3aed;background:#ede9fe}
+        .item small{color:#667085}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+        .stat{border:1px solid #d9dee8;border-radius:8px;padding:10px}
+        .stat b{display:block;font-size:21px}
+        .stat span{font-size:12px;color:#667085}
+        .table-wrap{overflow:auto;max-height:610px;border:1px solid #d9dee8;border-radius:9px}
+        table{border-collapse:collapse;min-width:760px;width:100%}th,td{border:1px solid #d9dee8;padding:6px;text-align:center}th{background:#f1f5f9;position:sticky;top:0}td{height:46px;min-width:58px;font-size:12px}
+        .active{background:#fef3c7!important;outline:3px solid #f59e0b;outline-offset:-3px}.chosen-cell{background:#ede9fe}
+        .best{background:#dcfce7}.note{margin-top:12px;padding:12px;border:1px solid #d9dee8;border-radius:9px;background:#f8fafc}.pill{display:inline-block;padding:5px 9px;margin:3px;background:#ede9fe;border:1px solid #a78bfa;border-radius:20px}.legend{font-size:12px;color:#667085;margin-top:12px;line-height:1.6}@media(max-width:900px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+        </style>
+        </head>
+        <body>
+            <header>
+                <h1>Emergency Supplies - 0/1 Knapsack Visualizer</h1>
+                <p>2D DP table + item list + chosen set. Ties favor the lighter load.</p>
+                </header><main><div class="grid"><section class="card">
+                    <h2>Supply Input</h2>
+                    <label>Vehicle capacity (kg)</label>
+                    <input id="capacity" type="number" min="0" value="10">
+                    <label>Supply name</label>
+                    <input id="name" placeholder="e.g. Water">
+                    <div class="row"><div>
+                        <label>Weight (kg)</label>
+                        <input id="weight" type="number" min="0" value="2">
+                        </div><div><label>Usefulness</label>
+                        <input id="value" type="number" min="0" value="8">
+                        </div></div>
+                        <button class="primary" onclick="addItem()">Add supply</button>
+                        <button class="secondary" onclick="loadSample()">Load sample</button>
+                        <button class="danger" onclick="clearAll()">Clear</button>
+                        <div id="itemList"></div><hr>
+                        <button class="primary" onclick="runDP()">Run DP</button>
+                        <button class="secondary" onclick="nextStep()">Next step</button>
+                        <div class="legend"><b>Signals:</b> Yellow + outline = current decision; Purple + text = chosen item; Green = final result. Color is never the only signal.</div></section><section class="card"><h2>2D Dynamic Programming Table</h2><div class="stats"><div class="stat"><b id="maxValue">0</b><span>Maximum usefulness</span></div><div class="stat"><b id="totalWeight">0 kg</b><span>Total selected weight</span></div><div class="stat"><b id="status">Ready</b><span>Status</span></div></div><div class="table-wrap"><table id="dpTable"></table></div><div class="note" id="message">Each cell shows <b>usefulness / total weight</b>. The algorithm compares skipping and taking each supply.</div><h2>Chosen Set</h2><div id="chosenSet"><span class="pill">None</span></div></section></div></main><script>
+let items=[],W=10,dp=[],totalWt=[],take=[],chosen=new Set(),stepI=0,stepC=0;const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));function better(v,w,V,Wt){return v>V||(v===V&&w<Wt)}function reset(){W=Math.max(0,parseInt($("capacity").value||0));let n=items.length;dp=Array.from({length:n+1},()=>Array(W+1).fill(0));totalWt=Array.from({length:n+1},()=>Array(W+1).fill(0));take=Array.from({length:n+1},()=>Array(W+1).fill(false));chosen=new Set();stepI=stepC=0;$("maxValue").textContent=0;$("totalWeight").textContent='0 kg';$("status").textContent='Ready';renderItems();renderTable();renderChosen()}function addItem(){items.push({name:$("name").value.trim()||('Supply '+(items.length+1)),weight:Math.max(0,parseInt($("weight").value||0)),value:Math.max(0,parseInt($("value").value||0))});$("name").value='';reset()}function removeItem(i){items.splice(i,1);reset()}function clearAll(){items=[];reset()}function loadSample(){items=[{name:'Water',weight:4,value:10},{name:'First Aid',weight:3,value:8},{name:'Blanket',weight:2,value:5},{name:'Food',weight:5,value:12},{name:'Radio',weight:1,value:4}];$("capacity").value=10;reset()}function calculateCell(i,c){let x=items[i-1],V=dp[i-1][c],Wt=totalWt[i-1][c],t=false;if(x.weight<=c){let v=dp[i-1][c-x.weight]+x.value,w=totalWt[i-1][c-x.weight]+x.weight;if(better(v,w,V,Wt)){V=v;Wt=w;t=true}}dp[i][c]=V;totalWt[i][c]=Wt;take[i][c]=t}function renderTable(ai=-1,ac=-1){let h='<thead><tr><th>Items \\ Capacity</th>';for(let c=0;c<=W;c++)h+=`<th>${c}</th>`;h+='</tr></thead><tbody>';for(let i=0;i<=items.length;i++){h+=`<tr><th>${i?' '+esc(items[i-1].name):'0'}</th>`;for(let c=0;c<=W;c++){let cls=(i===ai&&c===ac?'active ':'')+(i>0&&chosen.has(i-1)&&take[i][c]?'chosen-cell ':'')+(i===items.length&&c===W?'best':'');h+=`<td class="${cls}"><b>${dp[i][c]}</b><br><small>${totalWt[i][c]} kg</small></td>`}h+='</tr>'}h+='</tbody>';$("dpTable").innerHTML=h}function nextStep(){if(!items.length){$("message").textContent='Add at least one supply first.';return}if(stepI<items.length){stepI++;stepC=0}else if(stepC<W)stepC++;else{return finish()}calculateCell(stepI,stepC);let x=items[stepI-1],m=`Considering <b>${esc(x.name)}</b> at capacity <b>${stepC}</b>.`;if(x.weight<=stepC){let sv=dp[stepI-1][stepC],sw=totalWt[stepI-1][stepC],tv=dp[stepI-1][stepC-x.weight]+x.value,tw=totalWt[stepI-1][stepC-x.weight]+x.weight;m+=` Skip = ${sv} / ${sw} kg; Take = ${tv} / ${tw} kg. `;m+=better(tv,tw,sv,sw)?'<b>Take wins.</b>':'<b>Skip wins.</b>'}else m+=' Item is too heavy for this capacity, so it is skipped.';$("status").textContent=`Computing dp[${stepI}][${stepC}]`;$("message").innerHTML=m;renderTable(stepI,stepC)}function runDP(){reset();for(let i=1;i<=items.length;i++)for(let c=0;c<=W;c++)calculateCell(i,c);finish()}function finish(){let c=W;chosen=new Set();for(let i=items.length;i>=1;i--)if(take[i][c]){chosen.add(i-1);c-=items[i-1].weight}$("maxValue").textContent=dp[items.length][W];$("totalWeight").textContent=totalWt[items.length][W]+' kg';$("status").textContent='Complete';$("message").innerHTML=`Final result: <b>dp[${items.length}][${W}] = ${dp[items.length][W]}</b>. Backtracking creates the chosen set. Equal usefulness is resolved using the lighter total load.`;renderTable();renderItems();renderChosen()}function renderItems(){$("itemList").innerHTML=items.map((x,i)=>`<div class="item ${chosen.has(i)?'chosen':''}"><b>${esc(x.name)}</b><br><small>Weight: ${x.weight} kg | Usefulness: ${x.value}</small><br><button class="danger" onclick="removeItem(${i})">Remove</button></div>`).join('')}function renderChosen(){let a=[...chosen].sort((x,y)=>x-y);$("chosenSet").innerHTML=a.length?a.map(i=>`<span class="pill">${esc(items[i].name)} · ${items[i].weight} kg · usefulness ${items[i].value}</span>`).join(''):'<span class="pill">None</span>'}$("capacity").addEventListener('change',reset);loadSample();
+</script>
+</body>
+</html>
